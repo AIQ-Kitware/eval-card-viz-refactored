@@ -133,6 +133,7 @@ def _filter_panel(app):
                 with html.Div(classes="filters__values"):
                     with html.Template(v_for="v in g.values", key=("v",)):
                         with html.Div(
+                            v_if="(filter_counts[g.key][v] || 0) > 0 || selected_filters[g.key].includes(v)",
                             classes=(
                                 "'filter-row' + (selected_filters[g.key].includes(v) ? ' filter-row--active' : '')",
                             ),
