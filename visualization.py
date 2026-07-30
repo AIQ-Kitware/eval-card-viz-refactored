@@ -508,4 +508,4 @@ if __name__ == "__main__":
     parser.add_argument("path", type=str, help="Path to evaluation card results directory")
     args, _ = parser.parse_known_args()
     app = EvaluationCardsApp(args.path)
-    app.start(port=7860, host="0.0.0.0")
+    app.start()
