@@ -60,7 +60,7 @@ def _header(app):
         with html.Div(classes="detail__title-row"):
             with html.Div():
                 html.Div(
-                    "{{ selected_card.short }} · {{ selected_card.organization }}",
+                    "{{ selected_card.organization }}",
                     classes="detail__short",
                 )
                 html.H1("{{ selected_card.card.title }}", classes="detail__title")

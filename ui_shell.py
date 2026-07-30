@@ -50,7 +50,7 @@ def _top_bar(app):
     with html.Header(classes="topbar"):
         # Brand
         with html.Div(classes="topbar__brand"):
-            html.Div("◇", classes="brand-mark")
+            html.Img(src=("brand_mark_src",), classes="brand-mark")
             with html.Div(classes="brand-text"):
                 html.Div("MAGNET", classes="brand-name")
                 html.Div("Evaluation Cards", classes="brand-sub")
@@ -67,16 +67,22 @@ def _top_bar(app):
                 html.Span("·", classes="status__sep")
                 html.Span(classes=("'dot ' + (n_falsified_total > 0 ? 'dot--run' : 'dot--muted')",))
                 html.Span("{{ n_falsified_total }} falsified")
-            v3.VFileInput(
-                v_if="is_local_deployment",
-                v_model=("uploaded_file", None),
-                accept=".zip",
-                label="Upload local run (.zip)",
-                prepend_icon="mdi-folder-zip-outline",
-                variant="outlined",
-                density="compact",
-                hide_details=True,
-                clearable=True,
-                flat=True,
-                style="max-width: 260px;",
-            )
+            with html.Div(
+                title=(
+                    "Zip a directory containing one or more run folders "
+                    "(each with results/, card.yaml, and verdict.json)."
+                ),
+            ):
+                v3.VFileInput(
+                    v_if="is_local_deployment",
+                    v_model=("uploaded_file", None),
+                    accept=".zip",
+                    label="Upload local run (.zip)",
+                    prepend_icon="",
+                    prepend_inner_icon="mdi-upload",
+                    variant="underlined",
+                    density="compact",
+                    hide_details=True,
+                    flat=True,
+                    style="min-width: 260px;",
+                )

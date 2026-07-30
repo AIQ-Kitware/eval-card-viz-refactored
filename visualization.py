@@ -23,6 +23,8 @@ from trame.decorators import TrameApp, change
 
 from ui_shell import build_layout
 
+FAVICON_PATH = ub.Path(__file__).parent / "assets" / "MAGNET_icon.png"
+
 # ---------------------------------------------------------------------------
 # Card enrichment — derived fields consumed by the UI templates
 # ---------------------------------------------------------------------------
@@ -31,11 +33,13 @@ SPARK_W, SPARK_H = 88, 24
 CHART_W, CHART_H, CHART_P = 720, 220, 32
 
 FILTER_GROUPS = [
-    {"key": "tags", "label": "Tags"},
-    {"key": "organization", "label": "Organization"},
     {"key": "milestone", "label": "Milestone"},
+    {"key": "organization", "label": "Organization"},
     {"key": "result", "label": "Result"},
+    {"key": "tags", "label": "Tags"},
 ]
+
+DEFAULT_FILTERS = {"milestone": ["PhaseI_DryRun"]}
 
 
 def make_short(name):
@@ -170,7 +174,7 @@ def enrich_card(entry):
     series = cumulative_pass(runs_asc)
 
     entry.update(
-        short=make_short(entry["algorithm"]),
+        short=entry["organization"],
         summary=(card.get("description") or "").strip().splitlines()[0] if card.get("description") else "",
         version=str(card.get("version", "—")),
         submitter=(card.get("submitter") or {}).get("name"),
@@ -256,8 +260,8 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
         "figures": figures,
     }
     parts = card_run.name.split("_")
-    entry["id"], entry["date"] = parts[0], "".join(parts[1:])
-    # FIXME: id may collide for same-hash cards? for better or worse
+    entry["id"] = f"{milestone}/{organization}/{entry['algorithm']}/{card_run.name}"
+    entry["date"] = "".join(parts[1:])
     return enrich_card(entry)
 
 
@@ -307,6 +311,11 @@ class EvaluationCardsApp:
         self.server = get_server(server, client_type="vue3")
         self.state, self.ctrl = self.server.state, self.server.controller
         self.state.trame__title = "MAGNET — Evaluation Cards"
+        icon_data_uri = "data:image/png;base64," + base64.b64encode(
+            FAVICON_PATH.read_bytes()
+        ).decode("utf-8")
+        self.state.trame__favicon = icon_data_uri
+        self.state.brand_mark_src = icon_data_uri
 
         self.state.is_local_deployment = "SPACE_ID" not in os.environ
 
@@ -320,8 +329,14 @@ class EvaluationCardsApp:
 
         # Filter state
         self.state.search_term = ""
-        self.state.selected_filters = {g["key"]: [] for g in FILTER_GROUPS}
-        self.state.active_chips = []
+        self.state.selected_filters = {
+            g["key"]: list(DEFAULT_FILTERS.get(g["key"], [])) for g in FILTER_GROUPS
+        }
+        self.state.active_chips = [
+            {"key": key, "value": v}
+            for key, values in self.state.selected_filters.items()
+            for v in values
+        ]
 
         # Upload feedback
         self.state.upload_show = False
@@ -330,7 +345,9 @@ class EvaluationCardsApp:
 
         # Data
         self.state.cards = find_eval_card_data(path)
-        self.state.filtered_cards = list(self.state.cards)
+        self.state.filtered_cards = self.filter_cards(
+            self.state.cards, self.state.search_term, self.state.selected_filters
+        )
         self._refresh_catalog()
 
         build_layout(self)
@@ -338,28 +355,36 @@ class EvaluationCardsApp:
     # -- catalog ------------------------------------------------------------
 
     def _refresh_catalog(self):
-        """Rebuild filter groups, per-value counts, and topbar totals."""
+        """Rebuild filter groups (values) and topbar totals from the full card set."""
         cards = self.state.cards
-
-        def values_for(key):
-            if key == "tags":
-                out = set()
-                for c in cards:
-                    out.update(c["card"].get("tags", []))
-                return sorted(out)
-            return sorted({c[key] for c in cards})
-
-        groups, counts = [], {}
-        for group in FILTER_GROUPS:
-            key = group["key"]
-            values = values_for(key)
-            groups.append({**group, "values": values})
-            counts[key] = {v: sum(self._card_has(c, key, v) for c in cards) for v in values}
-
-        self.state.filter_groups = groups
-        self.state.filter_counts = counts
+        self.state.filter_groups = [
+            {**group, "values": self._values_for(group["key"], cards)} for group in FILTER_GROUPS
+        ]
         self.state.n_verified_total = sum(c["result"] == "VERIFIED" for c in cards)
         self.state.n_falsified_total = sum(c["result"] == "FALSIFIED" for c in cards)
+        self._refresh_filter_counts(self.state.search_term, self.state.selected_filters)
+
+    def _refresh_filter_counts(self, search_term, selected_filters):
+        """Per-value filter counts, faceted against the current search term
+        and every *other* group's active filters (so picking a value in one
+        group updates the counts shown in the other groups, while a group's
+        own counts stay stable as you pick more values within it)."""
+        counts = {}
+        for group in self.state.filter_groups:
+            key = group["key"]
+            other_filters = {k: v for k, v in selected_filters.items() if k != key}
+            base = self.filter_cards(self.state.cards, search_term, other_filters)
+            counts[key] = {v: sum(self._card_has(c, key, v) for c in base) for v in group["values"]}
+        self.state.filter_counts = counts
+
+    @staticmethod
+    def _values_for(key, cards):
+        if key == "tags":
+            out = set()
+            for c in cards:
+                out.update(c["card"].get("tags", []))
+            return sorted(out)
+        return sorted({c[key] for c in cards})
 
     @staticmethod
     def _card_has(card, key, value):
@@ -392,6 +417,7 @@ class EvaluationCardsApp:
             for key, values in selected_filters.items()
             for v in values
         ]
+        self._refresh_filter_counts(search_term, selected_filters)
         # Deselect the open card if it dropped out of the filtered set
         if self.state.selected_card and not any(
             c["id"] == self.state.selected_card["id"] for c in self.state.filtered_cards
