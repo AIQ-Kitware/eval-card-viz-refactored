@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv*
+venv*
+
+# Nested/vendored git checkout (separate repo, not tracked here)
+/aiq-evaluations/
+
+# Editor/OS
+.DS_Store
+
+# Env/secrets
+.env
