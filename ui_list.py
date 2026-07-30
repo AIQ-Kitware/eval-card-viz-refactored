@@ -172,7 +172,6 @@ def _card(app):
                 html.Span("{{ c.short }}", classes="card__short")
                 status_pill("c")
             html.H3("{{ c.card.title }}", classes="card__title")
-            html.P("{{ c.summary }}", classes="card__summary")
         with html.Div(classes="card__tags"):
             tag_chips("c.tag_list.slice(0, 5)")
         with html.Div(classes="card__foot"):
@@ -190,13 +189,10 @@ def _row(app):
     """List-mode evaluation row."""
     with html.Button(classes="row", click=(app.select_card, "[c.id]")):
         with html.Div(classes="row__main"):
+            html.Div("{{ c.card.title }}", classes="row__title")
             with html.Div(classes="row__title-line"):
                 html.Span("{{ c.short }}", classes="row__short")
-                html.Span("{{ c.card.title }}", classes="row__title")
                 status_pill("c")
-            html.P("{{ c.summary }}", classes="row__summary")
-        with html.Div(classes="row__tags"):
-            tag_chips("c.tag_list.slice(0, 3)")
         with html.Div(classes="row__metric"):
             html.Span("Pass", classes="metric__label")
             html.Span("{{ c.pass_rate }}%", classes="metric__value")
