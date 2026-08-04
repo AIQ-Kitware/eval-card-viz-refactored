@@ -66,6 +66,15 @@ def fmt_symbol_value(value):
     return text if len(text) <= 120 else text[:117] + "…"
 
 
+def submitter_initials(name):
+    words = (name or "").split()
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[0][0] + words[-1][0]).upper()
+
+
 def cumulative_pass(runs_asc):
     """Cumulative verified fraction over the sweep sequence."""
     series, ok = [], 0
@@ -173,11 +182,32 @@ def enrich_card(entry):
     n_verified = sum(run["ok"] for run in runs)
     series = cumulative_pass(runs_asc)
 
+    submitter = card.get("submitter") or {}
+    pipeline_steps = [
+        {
+            "step": step_name,
+            "executable": (step or {}).get("executable", ""),
+            "rows": (
+                [
+                    {"key": f"algo_params.{k}", "value": fmt_symbol_value(v)}
+                    for k, v in ((step or {}).get("algo_params") or {}).items()
+                ]
+                + [
+                    {"key": f"out_paths.{k}", "value": fmt_symbol_value(v)}
+                    for k, v in ((step or {}).get("out_paths") or {}).items()
+                ]
+            ),
+        }
+        for step_name, step in (card.get("pipeline") or {}).items()
+    ]
+
     entry.update(
         short=entry["organization"],
         summary=(card.get("description") or "").strip().splitlines()[0] if card.get("description") else "",
         version=str(card.get("version", "—")),
-        submitter=(card.get("submitter") or {}).get("name"),
+        submitter=submitter.get("name"),
+        submitter_email=submitter.get("email"),
+        submitter_initials=submitter_initials(submitter.get("name")),
         n_runs=n_runs,
         n_verified=n_verified,
         n_falsified=n_runs - n_verified,
@@ -193,6 +223,19 @@ def enrich_card(entry):
             + [{"label": entry["organization"], "group": "organization"}]
             + [{"label": entry["milestone"], "group": "milestone"}]
         ),
+        meta_chips=(
+            [{"label": f"v{card.get('version')}", "group": "version"}] if card.get("version") is not None else []
+        )
+        + [{"label": org, "group": "organization"} for org in card.get("organizations", [])],
+        card_symbols_rows=[
+            {
+                "name": name,
+                "type": (spec or {}).get("type", ""),
+                "value": fmt_symbol_value((spec or {}).get("value")),
+            }
+            for name, spec in (card.get("symbols") or {}).items()
+        ],
+        pipeline_steps=pipeline_steps,
     )
     return entry
 
@@ -249,7 +292,7 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
 
     entry = {
         "milestone": milestone,
-        "organization": organization,
+        "organization": card.get("organizations", [organization])[0],
         "algorithm": algorithm or card.get("title", card_run.name).replace(" ", "_"),
         "claim_aggregation_strategy": verdict_log.get("claim_aggregation_strategy"),
         "card": card,
@@ -325,7 +368,9 @@ class EvaluationCardsApp:
         self.state.selected_card = None
         self.state.current_tab = "overview"
         self.state.show_python_claim = False
+        self.state.show_raw_yaml = False
         self.state.expanded_symbols_runs = []
+        self.state.expanded_pipeline_steps = []
 
         # Filter state
         self.state.search_term = ""
@@ -360,8 +405,8 @@ class EvaluationCardsApp:
         self.state.filter_groups = [
             {**group, "values": self._values_for(group["key"], cards)} for group in FILTER_GROUPS
         ]
-        self.state.n_verified_total = sum(c["result"] == "VERIFIED" for c in cards)
-        self.state.n_falsified_total = sum(c["result"] == "FALSIFIED" for c in cards)
+        # self.state.n_verified_total = sum(c["result"] == "VERIFIED" for c in cards)
+        # self.state.n_falsified_total = sum(c["result"] == "FALSIFIED" for c in cards)
         self._refresh_filter_counts(self.state.search_term, self.state.selected_filters)
 
     def _refresh_filter_counts(self, search_term, selected_filters):
@@ -456,7 +501,9 @@ class EvaluationCardsApp:
         self.state.view = "detail"
         self.state.current_tab = "overview"
         self.state.show_python_claim = False
+        self.state.show_raw_yaml = False
         self.state.expanded_symbols_runs = []
+        self.state.expanded_pipeline_steps = []
 
     def toggle_symbols(self, run_id):
         expanded = list(self.state.expanded_symbols_runs)
@@ -465,6 +512,14 @@ class EvaluationCardsApp:
         else:
             expanded.append(run_id)
         self.state.expanded_symbols_runs = expanded
+
+    def toggle_pipeline_step(self, step):
+        expanded = list(self.state.expanded_pipeline_steps)
+        if step in expanded:
+            expanded.remove(step)
+        else:
+            expanded.append(step)
+        self.state.expanded_pipeline_steps = expanded
 
     # -- upload -------------------------------------------------------------
 

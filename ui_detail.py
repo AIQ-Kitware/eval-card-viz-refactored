@@ -14,7 +14,7 @@ from ui_list import icon, status_pill, tag_chips
 
 TABS = [
     ("overview", "Overview"),
-    ("runs", "Sweep runs"),
+    ("runs", "Sweeps"),
     ("card", "Card"),
     ("figures", "Figures"),
     ("log", "Log"),
@@ -44,7 +44,7 @@ def build_detail_view(app):
             with html.Div(v_if="current_tab === 'runs'"):
                 _sweep_runs(app)
             with html.Div(v_if="current_tab === 'card'"):
-                html.Pre("{{ selected_card.card_yaml }}", classes="codeblock")
+                _card_definition(app)
             with html.Div(v_if="current_tab === 'figures'"):
                 _figures()
             with html.Div(v_if="current_tab === 'log'"):
@@ -184,3 +184,109 @@ def _figures():
         with html.Template(v_for="(f, i) in selected_card.figures", key=("i",)):
             with html.Div(classes="figure"):
                 html.Img(src=("f",))
+
+
+def _card_definition(app):
+    """Card tab: pretty rendering of the EvaluationCard YAML, with a raw
+    fallback — see evaluation_card_schema.py for the field map this follows."""
+    with html.Div(classes="cardview"):
+        with html.Div(classes="cardview__toolbar"):
+            with html.Div(classes="tabs tabs--pill", style="border-bottom: none; margin-bottom: 0;"):
+                html.Button(
+                    "Pretty",
+                    classes=("'tab' + (show_raw_yaml ? '' : ' tab--active')",),
+                    click="show_raw_yaml = false",
+                )
+                html.Button(
+                    "Raw YAML",
+                    classes=("'tab' + (show_raw_yaml ? ' tab--active' : '')",),
+                    click="show_raw_yaml = true",
+                )
+            with html.Button(
+                v_if="show_raw_yaml",
+                classes="copybtn",
+                __properties=[("data_copy_text", ":data-copy-text")],
+                data_copy_text="selected_card.card_yaml",
+            ):
+                icon("copy")
+                html.Span("Copy", classes="copybtn__label")
+        with html.Div(v_if="show_raw_yaml"):
+            html.Pre("{{ selected_card.card_yaml }}", classes="codeblock")
+        with html.Div(v_else=True, classes="cardview__body"):
+            _card_pretty(app)
+
+
+def _card_pretty(app):
+    # Version + organizations
+    with html.Div(v_if="selected_card.meta_chips.length > 0", classes="cardview__meta"):
+        tag_chips("selected_card.meta_chips")
+
+    # Description
+    with html.Div(v_if="selected_card.card.description", classes="cardview__section"):
+        html.Div("Description", classes="cardview__section-title")
+        with html.Div(classes="claim__desc"):
+            markdown.Markdown(content=("selected_card.card.description",))
+
+    # Submitter
+    with html.Div(v_if="selected_card.submitter", classes="cardview__section"):
+        html.Div("Submitter", classes="cardview__section-title")
+        with html.Div(classes="submitter-row"):
+            html.Div("{{ selected_card.submitter_initials }}", classes="avatar")
+            with html.Div():
+                html.Div("{{ selected_card.submitter }}", classes="submitter-row__name")
+                html.A(
+                    "{{ selected_card.submitter_email }}",
+                    v_if="selected_card.submitter_email",
+                    href=("'mailto:' + selected_card.submitter_email",),
+                    classes="submitter-row__email",
+                )
+
+    # Symbols
+    with html.Div(v_if="selected_card.card_symbols_rows.length > 0", classes="cardview__section"):
+        html.Div("Symbols", classes="cardview__section-title")
+        with html.Div(v_if="selected_card.card_symbols_rows.length <= 6", classes="cardview__chips"):
+            with html.Template(v_for="s in selected_card.card_symbols_rows", key=("s.name",)):
+                with html.Span(classes="symbol-chip"):
+                    html.Span("{{ s.name }}", classes="mono")
+                    html.Span("{{ s.value }}", classes="mono symbol-chip__value")
+                    html.Span("{{ s.type }}", v_if="s.type", classes="symbol-chip__type")
+        with html.Table(v_else=True, classes="rtable rtable--dense"):
+            with html.Thead():
+                with html.Tr():
+                    html.Th("Symbol")
+                    html.Th("Type")
+                    html.Th("Value")
+            with html.Tbody():
+                with html.Template(v_for="s in selected_card.card_symbols_rows", key=("s.name",)):
+                    with html.Tr():
+                        html.Td("{{ s.name }}", classes="mono")
+                        html.Td("{{ s.type }}", classes="mono muted-tiny")
+                        html.Td("{{ s.value }}", classes="mono prompt-cell", title=("s.value",))
+
+    # Claim
+    with html.Div(v_if="selected_card.claim", classes="cardview__section"):
+        html.Div("Claim", classes="cardview__section-title")
+        html.Pre("{{ selected_card.claim }}", classes="codeblock codeblock--inline")
+
+    # Pipeline (collapsed by default)
+    with html.Div(v_if="selected_card.pipeline_steps.length > 0", classes="cardview__section"):
+        html.Div("Pipeline", classes="cardview__section-title")
+        with html.Template(v_for="p in selected_card.pipeline_steps", key=("p.step",)):
+            with html.Div(classes="pipeline-step"):
+                with html.Button(
+                    classes="pipeline-step__head",
+                    click=(app.toggle_pipeline_step, "[p.step]"),
+                ):
+                    icon("chevron")
+                    html.Span("{{ p.step }}", classes="mono")
+                    html.Span("{{ p.executable }}", classes="muted-tiny pipeline-step__exec")
+                with html.Div(
+                    v_if="expanded_pipeline_steps.includes(p.step) && p.rows.length > 0",
+                    classes="pipeline-step__body",
+                ):
+                    with html.Table(classes="rtable rtable--dense"):
+                        with html.Tbody():
+                            with html.Template(v_for="r in p.rows", key=("r.key",)):
+                                with html.Tr():
+                                    html.Td("{{ r.key }}", classes="mono")
+                                    html.Td("{{ r.value }}", classes="mono prompt-cell", title=("r.value",))

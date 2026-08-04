@@ -17,3 +17,5 @@ venv*
 
 # Env/secrets
 .env
+
+.resources

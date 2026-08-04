@@ -23,6 +23,7 @@ ICONS = {
     "arrowLeft": f'<svg viewBox="0 0 16 16" width="14" height="14" {_S}><path d="M10 3 L4 8 L10 13"/></svg>',
     "chevron": f'<svg viewBox="0 0 16 16" width="12" height="12" {_S}><path d="M6 3 L11 8 L6 13"/></svg>',
     "x": f'<svg viewBox="0 0 16 16" width="12" height="12" {_S}><path d="M4 4 L12 12 M12 4 L4 12"/></svg>',
+    "copy": f'<svg viewBox="0 0 16 16" width="14" height="14" {_S}><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5V3.5a1 1 0 0 1 1-1h7"/></svg>',
 }
 
 
