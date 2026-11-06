@@ -278,6 +278,10 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
     claim = "".join(split_claim[:-1]) if len(split_claim) > 1 else split_claim[0]
 
     verdict_log = json.loads((card_run / "verdict.json").read_text())
+    provenance = verdict_log.get("provenance") or {}
+    theory_path = card_run / "theory.json"
+    theory = json.loads(theory_path.read_text()) if theory_path.exists() else {}
+    formalization = provenance.get("formalization") or {}
 
     figures = None
     if (card_run / "kwdagger").exists():
@@ -301,6 +305,12 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
         "runs": runs,
         "log": log_text,
         "figures": figures,
+        "provenance": provenance,
+        "theory": theory,
+        "formalization": formalization,
+        "has_formalization": bool(formalization or any(
+            entry.get("formalization") for entry in theory.get("entries", [])
+        )),
     }
     parts = card_run.name.split("_")
     entry["id"] = f"{milestone}/{organization}/{entry['algorithm']}/{card_run.name}"

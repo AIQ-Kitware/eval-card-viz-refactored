@@ -133,3 +133,16 @@ so the templates only bind precomputed values.
 
 
 
+
+## Formalization evidence
+
+The loader preserves result-level `verdict.json` provenance and an optional
+`theory.json` in the dashboard's serialized card records. Recorded validation
+metadata is exposed as `formalization`, alongside the complete `provenance`
+and `theory` objects. Older results load with empty objects for absent fields.
+
+A Formalization tab appears when validation metadata or a formal source is
+recorded. It shows validation status, revision, toolchain, build and axiom
+audit, scope, empirical limitations, declarations and assumptions. A reference
+to a formal source alone has no recorded validation status; informal theory
+entries do not create a formalization indicator.

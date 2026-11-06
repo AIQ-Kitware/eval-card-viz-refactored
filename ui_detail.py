@@ -16,6 +16,7 @@ TABS = [
     ("overview", "Overview"),
     ("runs", "Sweeps"),
     ("card", "Card"),
+    ("formalization", "Formalization"),
     ("figures", "Figures"),
     ("log", "Log"),
 ]
@@ -31,6 +32,8 @@ def build_detail_view(app):
                 kwargs = {}
                 if key == "figures":
                     kwargs["v_if"] = "selected_card.figures && selected_card.figures.length > 0"
+                elif key == "formalization":
+                    kwargs["v_if"] = "selected_card.has_formalization"
                 html.Button(
                     label,
                     classes=(f"'tab' + (current_tab === '{key}' ? ' tab--active' : '')",),
@@ -45,6 +48,8 @@ def build_detail_view(app):
                 _sweep_runs(app)
             with html.Div(v_if="current_tab === 'card'"):
                 _card_definition(app)
+            with html.Div(v_if="current_tab === 'formalization'"):
+                _formalization()
             with html.Div(v_if="current_tab === 'figures'"):
                 _figures()
             with html.Div(v_if="current_tab === 'log'"):
@@ -134,6 +139,27 @@ def _overview():
                 html.Pre("{{ selected_card.claim }}", classes="codeblock codeblock--inline")
             with html.Div(classes="claim__agg muted-tiny"):
                 html.Span("Aggregation · {{ selected_card.agg_label }}")
+
+
+def _formalization():
+    with html.Div(classes="claim"):
+        html.H3("Formalization")
+        with html.Div(v_if="selected_card.has_formalization"):
+            html.P("Validation: {{ selected_card.formalization.status || 'Not recorded' }}")
+            for label, field in [("Toolchain", "lean_toolchain"), ("Revision", "submission_revision"),
+                                 ("Build", "build"), ("Axiom audit", "axiom_audit")]:
+                html.P(label + ": {{ selected_card.formalization." + field + " }}",
+                       v_if="selected_card.formalization." + field)
+            html.P("{{ selected_card.formalization.scope }}")
+            html.P("{{ selected_card.formalization.empirical_limit }}")
+            html.P("{{ selected_card.formalization.assessment_timing }}", classes="muted-tiny")
+            with html.Template(v_for="entry in (selected_card.theory.entries || [])", key=("entry.id",)):
+                with html.Div(classes="claim"):
+                    html.H4("{{ entry.declaration || entry.id }}")
+                    html.P("{{ entry.statement }}")
+                    with html.Ul():
+                        with html.Template(v_for="premise in (entry.premises || [])", key=("premise.id",)):
+                            html.Li("{{ premise.id }}: {{ premise.statement }}")
 
 
 def _sweep_runs(app):
