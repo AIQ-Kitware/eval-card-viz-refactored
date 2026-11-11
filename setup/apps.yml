@@ -2,7 +2,6 @@ trame:
   cmd:
     - python
     - /deploy/visualization.py
-    - --path
     - /deploy/aiq-evaluations
     - --host
     - ${host}

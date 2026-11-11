@@ -12,6 +12,65 @@ You can also pass the whole `aiq-evaluations` repository; the library selects
 are initially visible. A milestone, organization, algorithm, or individual run
 directory can be used as the input path.
 
+## Run with Docker
+
+Install Docker and start its daemon, then run from this checkout:
+
+```bash
+./scripts/serve-docker.sh aiq-evaluations/PhaseI_Final
+```
+
+Open **http://localhost:8080**. The script builds the image and starts a
+foreground container. Press Ctrl+C to stop it; Docker removes the container
+when it exits. The host results directory is mounted read-only at
+`/deploy/aiq-evaluations`. The directory and its files must be readable by the
+container's `trame-user`. No local Python environment is required.
+
+Arguments are `[RESULTS_DIR] [HOST_IP] [PORT]`, with host IP `127.0.0.1` and
+port `8080` by default. To choose a different results directory and port:
+
+```bash
+./scripts/serve-docker.sh /path/to/aiq-evaluations 127.0.0.1 8090
+```
+
+To serve on a specific host IP, or on all IPv4 interfaces:
+
+```bash
+./scripts/serve-docker.sh aiq-evaluations/PhaseI_Final 192.168.1.10 8090
+./scripts/serve-docker.sh aiq-evaluations/PhaseI_Final 0.0.0.0 8090
+```
+
+The host IP must belong to the machine running Docker. For an all-interface
+binding, other machines connect using that machine's IP and the chosen port.
+IPv6 addresses such as `::1` are also accepted when supported by Docker.
+
+With no arguments, the script uses this checkout's `aiq-evaluations` directory
+when present, otherwise the bundled `evaluations` directory. Paths supplied
+as arguments are relative to your current working directory. The server binds
+to localhost by default. For a remote Docker host, forward the port over SSH:
+
+```bash
+ssh -L 8080:localhost:8080 user@docker-host
+```
+
+The image tag and container name can be overridden with `EVAL_CARD_IMAGE`
+and `EVAL_CARD_CONTAINER`. Run `./scripts/serve-docker.sh --help` for usage.
+
+Equivalent manual commands (run from the repository root):
+
+```bash
+docker build -t eval-card-viz:local .
+docker run --rm --init --name eval-card-viz-local \
+  -p 127.0.0.1:8080:80 \
+  --mount "type=bind,source=$(pwd)/aiq-evaluations/PhaseI_Final,target=/deploy/aiq-evaluations,readonly" \
+  eval-card-viz:local
+```
+
+To stop it from another terminal, use `docker stop eval-card-viz-local`.
+Restart the container to load changes to the mounted results. Uploaded ZIP
+results are held in the dashboard session and are lost when that session ends.
+If startup fails, check `docker logs eval-card-viz-local` while it is running.
+
 ## Quick Start (Local Results Only)
 If your goal is to strictly view local results, you may start the application using the following steps:
 1) Optional: Generate results
