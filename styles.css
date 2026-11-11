@@ -272,6 +272,8 @@ button { font: inherit; color: inherit; }
 .card__title { font-size: 16px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.005em; }
 .card__summary { font-size: 13px; color: var(--text-dim); margin: 0; text-wrap: pretty; }
 .card__tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 14px 0 14px; }
+.card__metrics { display: grid; gap: 8px; margin-bottom: 14px; }
+.card__metric { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .card__foot {
   border-top: 1px solid var(--border);
   padding-top: 12px;

@@ -39,7 +39,7 @@ FILTER_GROUPS = [
     {"key": "tags", "label": "Tags"},
 ]
 
-DEFAULT_FILTERS = {"milestone": ["PhaseI_DryRun"]}
+DEFAULT_FILTERS = {"milestone": ["PhaseI_Final"]}
 
 
 def make_short(name):
@@ -167,6 +167,11 @@ def normalize_links(raw_links):
 def enrich_card(entry):
     """Attach the derived fields the UI binds to (in place)."""
     card = entry["card"]
+    metadata = {
+        name: (spec or {}).get("metadata", {})
+        for name, spec in (card.get("symbols") or {}).items()
+    }
+    metadata.update(entry.get("symbol_metadata") or {})
     runs = entry["runs"]  # newest first
     runs_asc = sorted(runs, key=lambda r: r.get("timestamp", ""))
 
@@ -174,8 +179,13 @@ def enrich_card(entry):
         run["ok"] = run["status"] == "VERIFIED"
         run["time_str"] = fmt_timestamp(run.get("timestamp")) or "no timestamp"
         run["symbols_rows"] = [
-            {"name": name, "value": fmt_symbol_value(value)}
+            {"name": metadata.get(name, {}).get("display_name", name),
+             "symbol": name, "value": fmt_symbol_value(value)}
             for name, value in (run.get("symbols") or {}).items()
+        ]
+        run["display_rows"] = [
+            row for row in run["symbols_rows"]
+            if metadata.get(row["symbol"], {}).get("display")
         ]
 
     n_runs = len(runs)
@@ -183,6 +193,10 @@ def enrich_card(entry):
     series = cumulative_pass(runs_asc)
 
     submitter = card.get("submitter") or {}
+    kwdagger = card.get("kwdagger") or {}
+    pipeline = card.get("pipeline") or kwdagger.get("pipeline") or {}
+    pipeline_reference = pipeline if isinstance(pipeline, str) else ""
+    nodes = {} if pipeline_reference else pipeline.get("nodes", pipeline)
     pipeline_steps = [
         {
             "step": step_name,
@@ -198,8 +212,16 @@ def enrich_card(entry):
                 ]
             ),
         }
-        for step_name, step in (card.get("pipeline") or {}).items()
+        for step_name, step in nodes.items()
     ]
+    metrics = []
+    for name, value in (entry.get("metrics") or {}).items():
+        spec = next((m for symbol, m in metadata.items()
+                     if m.get("display_name", symbol) == name), {})
+        definition = spec.get("define_metric") or {}
+        metrics.append({"name": name, "value": fmt_symbol_value(value),
+                        "objective": definition.get("objective", ""),
+                        "aggregation": (definition.get("aggregation_strategy") or {}).get("type", "")})
 
     entry.update(
         short=entry["organization"],
@@ -210,7 +232,8 @@ def enrich_card(entry):
         submitter_initials=submitter_initials(submitter.get("name")),
         n_runs=n_runs,
         n_verified=n_verified,
-        n_falsified=n_runs - n_verified,
+        n_falsified=sum(run["status"] == "FALSIFIED" for run in runs),
+        n_inconclusive=sum(run["status"] not in ("VERIFIED", "FALSIFIED") for run in runs),
         pass_rate=round(100 * n_verified / n_runs) if n_runs else 0,
         last_run=fmt_timestamp(runs_asc[-1].get("timestamp")) if runs_asc else None,
         spark_svg=spark_svg(series),
@@ -236,6 +259,11 @@ def enrich_card(entry):
             for name, spec in (card.get("symbols") or {}).items()
         ],
         pipeline_steps=pipeline_steps,
+        pipeline_reference=pipeline_reference,
+        result_node=kwdagger.get("result_node", ""),
+        matrix_rows=[{"key": k, "value": fmt_symbol_value(v)}
+                     for k, v in (kwdagger.get("matrix") or {}).items()],
+        metric_rows=metrics,
     )
     return entry
 
@@ -273,11 +301,20 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
     if "description" in card:
         card["description"] = re.sub(r"``([^`]*)``", r"`\1`", card["description"])
 
-    claim_raw = card.get("claim", {}).get("python", "")
-    split_claim = claim_raw.split(",")
-    claim = "".join(split_claim[:-1]) if len(split_claim) > 1 else split_claim[0]
+    claim = card.get("claim", {}).get("python", "")
 
     verdict_log = json.loads((card_run / "verdict.json").read_text())
+
+    def read_json(name):
+        path = card_run / name
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    report_path = card_run / "report.md"
+    if not report_path.exists():
+        report_path = card_run / "report.txt"
+    execution_provenance = read_json("provenance.json")
+    provenance = execution_provenance or verdict_log.get("provenance") or {}
+    theory = read_json("theory.json") or card.get("theory") or {}
 
     figures = None
     if (card_run / "kwdagger").exists():
@@ -301,6 +338,19 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
         "runs": runs,
         "log": log_text,
         "figures": figures,
+        "metrics": verdict_log.get("metrics") or {},
+        "symbol_metadata": read_json("symbol_metadata.json"),
+        "report": report_path.read_text() if report_path.exists() else "",
+        "context_sections": [
+            {"title": title, "text": json.dumps(data, indent=2, ensure_ascii=False)}
+            for title, data in [
+                ("Evidence", verdict_log.get("evidence")),
+                ("Requested work", verdict_log.get("requested_work")),
+                ("Provenance", provenance),
+                ("Verdict provenance", verdict_log.get("provenance") if execution_provenance else {}),
+                ("Theory", theory),
+            ] if data
+        ],
     }
     parts = card_run.name.split("_")
     entry["id"] = f"{milestone}/{organization}/{entry['algorithm']}/{card_run.name}"
@@ -309,38 +359,37 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
 
 
 def find_eval_card_data(root_path):
-    """Scan the triple-nested layout: milestone / organization / algorithm /
-    {card_hash}_{timestamp}."""
+    """Load an evaluation repository, milestone, organization, algorithm or run."""
+    root = ub.Path(root_path).resolve()
     contents = []
-    for milestone_dir in ub.Path(root_path).iterdir():
-        if not milestone_dir.is_dir():
+    for directory, dirs, files in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        if "card.yaml" not in files:
             continue
-        for organization_dir in milestone_dir.iterdir():
-            if not organization_dir.is_dir():
-                continue
-            for algorithm_dir in organization_dir.iterdir():
-                if not algorithm_dir.is_dir():
-                    continue
-                for card_run in algorithm_dir.iterdir():
-                    if not card_run.is_dir():
-                        continue
-                    entry = parse_card_run(
-                        card_run, milestone_dir.name, organization_dir.name, algorithm_dir.name
-                    )
-                    if entry:
-                        contents.append(entry)
+        card_run = ub.Path(directory)
+        if not (card_run / "verdict.json").exists() or not (card_run / "results").is_dir():
+            continue
+        algorithm = card_run.parent
+        organization = algorithm.parent
+        entry = parse_card_run(card_run, organization.parent.name, organization.name, algorithm.name)
+        if entry:
+            contents.append(entry)
+        dirs[:] = []  # Do not treat attached theory cards as evaluation runs.
     return contents
 
 
 def find_upload_data(root_path):
     """Parse native MAGNET output (a directory of run folders)."""
     contents = []
-    for card_run in ub.Path(root_path).iterdir():
-        if not card_run.is_dir():
+    for directory, dirs, files in os.walk(root_path):
+        dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+        if "card.yaml" not in files or "verdict.json" not in files:
             continue
+        card_run = ub.Path(directory)
         entry = parse_card_run(card_run, "SelfEvaluation", "Local")
         if entry:
             contents.append(entry)
+            dirs[:] = []
     return contents
 
 
@@ -373,9 +422,11 @@ class EvaluationCardsApp:
         self.state.expanded_pipeline_steps = []
 
         # Filter state
+        cards = find_eval_card_data(path)
         self.state.search_term = ""
         self.state.selected_filters = {
-            g["key"]: list(DEFAULT_FILTERS.get(g["key"], [])) for g in FILTER_GROUPS
+            g["key"]: [v for v in DEFAULT_FILTERS.get(g["key"], [])
+                       if any(c[g["key"]] == v for c in cards)] for g in FILTER_GROUPS
         }
         self.state.active_chips = [
             {"key": key, "value": v}
@@ -389,7 +440,7 @@ class EvaluationCardsApp:
         self.state.upload_color = "success"
 
         # Data
-        self.state.cards = find_eval_card_data(path)
+        self.state.cards = cards
         self.state.filtered_cards = self.filter_cards(
             self.state.cards, self.state.search_term, self.state.selected_filters
         )
