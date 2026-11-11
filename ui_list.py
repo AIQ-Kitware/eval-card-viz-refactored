@@ -65,7 +65,7 @@ def build_list_view(app):
         with html.Div(classes="list__hero"):
             html.H1("Evaluation Cards", classes="list__h1")
             html.P(
-                "<TODO: Get the right description for the evaluation",
+                "Explore evaluation claims, reported metrics, and supporting evidence.",
                 classes="list__lede",
             )
 
@@ -175,6 +175,11 @@ def _card(app):
             html.H3("{{ c.card.title }}", classes="card__title")
         with html.Div(classes="card__tags"):
             tag_chips("c.tag_list.slice(0, 5)")
+        with html.Div(v_if="c.metric_rows.length > 0", classes="card__metrics"):
+            with html.Template(v_for="m in c.metric_rows.slice(0, 3)", key=("m.name",)):
+                with html.Div(classes="card__metric"):
+                    html.Span("{{ m.name }}", classes="metric__label")
+                    html.Span("{{ m.value }}", classes="metric__value")
         with html.Div(classes="card__foot"):
             with html.Div(classes="card__foot-inner"):
                 with html.Div(classes="metric"):

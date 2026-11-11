@@ -16,6 +16,8 @@ TABS = [
     ("overview", "Overview"),
     ("runs", "Sweeps"),
     ("card", "Card"),
+    ("report", "Report"),
+    ("context", "Evidence & provenance"),
     ("figures", "Figures"),
     ("log", "Log"),
 ]
@@ -31,6 +33,10 @@ def build_detail_view(app):
                 kwargs = {}
                 if key == "figures":
                     kwargs["v_if"] = "selected_card.figures && selected_card.figures.length > 0"
+                elif key == "report":
+                    kwargs["v_if"] = "selected_card.report"
+                elif key == "context":
+                    kwargs["v_if"] = "selected_card.context_sections.length > 0"
                 html.Button(
                     label,
                     classes=(f"'tab' + (current_tab === '{key}' ? ' tab--active' : '')",),
@@ -45,6 +51,13 @@ def build_detail_view(app):
                 _sweep_runs(app)
             with html.Div(v_if="current_tab === 'card'"):
                 _card_definition(app)
+            with html.Div(v_if="current_tab === 'report'", classes="claim__desc"):
+                markdown.Markdown(content=("selected_card.report",))
+            with html.Div(v_if="current_tab === 'context'"):
+                with html.Template(v_for="section in selected_card.context_sections", key=("section.title",)):
+                    with html.Div(classes="cardview__section"):
+                        html.Div("{{ section.title }}", classes="cardview__section-title")
+                        html.Pre("{{ section.text }}", classes="codeblock")
             with html.Div(v_if="current_tab === 'figures'"):
                 _figures()
             with html.Div(v_if="current_tab === 'log'"):
@@ -103,8 +116,27 @@ def _overview():
             _metric_block("Pass rate", "selected_card.pass_rate + '%'", "verified sweeps")
             _metric_block("Verified", "selected_card.n_verified", "assertion holds")
             _metric_block("Falsified", "selected_card.n_falsified", "assertion fails")
+            with html.Div(v_if="selected_card.n_inconclusive > 0"):
+                _metric_block("Inconclusive", "selected_card.n_inconclusive", "no definitive verdict")
             _metric_block("Sweeps", "selected_card.n_runs", "parameter sets")
             _metric_block("Version", "selected_card.version", "card definition")
+
+        with html.Div(v_if="selected_card.metric_rows.length > 0", classes="cardview__section"):
+            html.Div("Reported metrics", classes="cardview__section-title")
+            with html.Table(classes="rtable rtable--dense"):
+                with html.Thead():
+                    with html.Tr():
+                        html.Th("Metric")
+                        html.Th("Value")
+                        html.Th("Objective")
+                        html.Th("Aggregation")
+                with html.Tbody():
+                    with html.Template(v_for="m in selected_card.metric_rows", key=("m.name",)):
+                        with html.Tr():
+                            html.Td("{{ m.name }}")
+                            html.Td("{{ m.value }}", classes="mono")
+                            html.Td("{{ m.objective }}")
+                            html.Td("{{ m.aggregation }}")
 
         # Cumulative pass-rate chart over the sweep sequence (server-rendered SVG)
         with html.Div(classes="overview__chart"):
@@ -145,21 +177,28 @@ def _sweep_runs(app):
             html.Span("·", classes="status__sep")
             html.Span(classes=("'dot ' + (selected_card.n_falsified > 0 ? 'dot--run' : 'dot--muted')",))
             html.Span("{{ selected_card.n_falsified }} falsified")
+            html.Span("· {{ selected_card.n_inconclusive }} inconclusive", v_if="selected_card.n_inconclusive > 0")
             html.Span("·", classes="status__sep")
             html.Span("{{ selected_card.agg_label }}")
 
         with html.Template(v_for="run in selected_card.runs", key=("run.id",)):
-            with html.Div(classes=("'sweep' + (run.ok ? '' : ' sweep--bad')",)):
+            with html.Div(classes=("'sweep' + (run.status === 'FALSIFIED' ? ' sweep--bad' : '')",)):
                 with html.Div(classes="sweep__top"):
                     html.Span("sweep {{ run.id }}", classes="sweep__id")
                     with html.Div(style="display: flex; align-items: center; gap: 10px;"):
                         html.Span("{{ run.time_str }}", classes="sweep__time")
                         html.Span(
                             "{{ run.status }}",
-                            classes=("'pill ' + (run.ok ? 'pill--ok' : 'pill--bad')",),
+                            classes=("'pill ' + (run.ok ? 'pill--ok' : run.status === 'FALSIFIED' ? 'pill--bad' : 'pill--muted')",),
                         )
                 # Assertion output shown only when the claim failed
                 html.Pre("{{ run.output }}", v_if="!run.ok && run.output", classes="sweep__output")
+                with html.Table(v_if="run.display_rows.length > 0", classes="rtable rtable--dense"):
+                    with html.Tbody():
+                        with html.Template(v_for="s in run.display_rows", key=("s.symbol",)):
+                            with html.Tr():
+                                html.Td("{{ s.name }}", title=("s.symbol",))
+                                html.Td("{{ s.value }}", classes="mono prompt-cell")
                 # Symbols toggle + table
                 with html.Button(classes="sweep__toggle", click=(app.toggle_symbols, "[run.id]")):
                     icon("chevron")
@@ -173,9 +212,9 @@ def _sweep_runs(app):
                                 html.Th("Symbol")
                                 html.Th("Value")
                         with html.Tbody():
-                            with html.Template(v_for="s in run.symbols_rows", key=("s.name",)):
+                            with html.Template(v_for="s in run.symbols_rows", key=("s.symbol",)):
                                 with html.Tr():
-                                    html.Td("{{ s.name }}", classes="mono")
+                                    html.Td("{{ s.name }}", classes="mono", title=("s.symbol",))
                                     html.Td("{{ s.value }}", classes="mono prompt-cell", title=("s.value",))
 
 
@@ -269,6 +308,18 @@ def _card_pretty(app):
         html.Pre("{{ selected_card.claim }}", classes="codeblock codeblock--inline")
 
     # Pipeline (collapsed by default)
+    with html.Div(v_if="selected_card.pipeline_reference || selected_card.result_node", classes="cardview__section"):
+        html.Div("kwdagger pipeline", classes="cardview__section-title")
+        html.Pre("{{ selected_card.pipeline_reference }}", v_if="selected_card.pipeline_reference", classes="codeblock")
+        html.Div("Result node · {{ selected_card.result_node }}", v_if="selected_card.result_node", classes="mono")
+    with html.Div(v_if="selected_card.matrix_rows.length > 0", classes="cardview__section"):
+        html.Div("Parameter matrix", classes="cardview__section-title")
+        with html.Table(classes="rtable rtable--dense"):
+            with html.Tbody():
+                with html.Template(v_for="r in selected_card.matrix_rows", key=("r.key",)):
+                    with html.Tr():
+                        html.Td("{{ r.key }}", classes="mono")
+                        html.Td("{{ r.value }}", classes="mono prompt-cell", title=("r.value",))
     with html.Div(v_if="selected_card.pipeline_steps.length > 0", classes="cardview__section"):
         html.Div("Pipeline", classes="cardview__section-title")
         with html.Template(v_for="p in selected_card.pipeline_steps", key=("p.step",)):
