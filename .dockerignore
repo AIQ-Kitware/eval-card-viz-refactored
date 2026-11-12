@@ -4,4 +4,7 @@ __pycache__/
 *.egg-info
 .git
 build
+.env
+.env.*
+!.env.example
 

@@ -54,6 +54,30 @@ uv run visualization.py ./evaluations
 
 ## General Guide
 
+### Running with Docker
+
+With Docker and Make installed:
+
+```bash
+cp .env.example .env
+make build
+make serve
+```
+
+Open http://127.0.0.1:8080. The container runs in the foreground; press
+Ctrl+C to stop it and remove the container.
+
+Edit `.env` to change the image name, host IP/port, or bind mounts. Settings
+use Make syntax: unquoted values without `export`. By default, the bundled
+`./evaluations` directory is mounted read-only at `/deploy/aiq-evaluations`,
+where the containerized app looks for results. To show another collection,
+change the source path in `BIND_MOUNTS`, keeping that destination. Multiple
+mounts can be separated by spaces; mount paths must not contain spaces.
+Set `HOST_IP=0.0.0.0` to listen on all host interfaces.
+
+Both commands also work without `.env`, using the defaults in the Makefile.
+Re-run `make build` after changing application code.
+
 ### (Preliminary) Populate Results 
 From MAGNET, generate output artifacts by evaluating each card you would like to visualize. For example, you can use the `evaluate` command on our simple example card:
 ```
