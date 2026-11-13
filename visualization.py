@@ -164,6 +164,22 @@ def normalize_links(raw_links):
     return links
 
 
+def theory_links(theory, provenance):
+    """Preserve relation types and resolve recorded source links when available."""
+    rows = []
+    sources = provenance.get("theory_sources") or {}
+    for group in ("statement_links", "premise_links"):
+        for link in theory.get(group, []):
+            row = dict(link, group=group)
+            source = sources.get(link.get("file"), {})
+            url = source.get("url", "") if isinstance(source, dict) else source
+            if url and link.get("line"):
+                url += f'#L{link["line"]}'
+            row["url"] = url
+            rows.append(row)
+    return rows
+
+
 def enrich_card(entry):
     """Attach the derived fields the UI binds to (in place)."""
     card = entry["card"]
@@ -176,6 +192,17 @@ def enrich_card(entry):
         run["symbols_rows"] = [
             {"name": name, "value": fmt_symbol_value(value)}
             for name, value in (run.get("symbols") or {}).items()
+        ]
+        labels = [label for label, variant in entry.get("variants", {}).items()
+                  if run["id"] in variant.get("claims", [])]
+        run["variant_labels"] = labels
+        run["label"] = "; ".join(labels) or run["id"]
+        node = (card.get("kwdagger") or {}).get("result_node")
+        prefix = f"metrics.{node}." if node else None
+        run["measurement_rows"] = [
+            {"name": key[len(prefix):], "value": fmt_symbol_value(value)}
+            for key, value in (run.get("evidence") or {}).items()
+            if prefix and key.startswith(prefix)
         ]
 
     n_runs = len(runs)
@@ -273,15 +300,15 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
     if "description" in card:
         card["description"] = re.sub(r"``([^`]*)``", r"`\1`", card["description"])
 
-    claim_raw = card.get("claim", {}).get("python", "")
-    split_claim = claim_raw.split(",")
-    claim = "".join(split_claim[:-1]) if len(split_claim) > 1 else split_claim[0]
+    claim = card.get("claim", {}).get("python", "")
 
     verdict_log = json.loads((card_run / "verdict.json").read_text())
     provenance = verdict_log.get("provenance") or {}
     theory_path = card_run / "theory.json"
     theory = json.loads(theory_path.read_text()) if theory_path.exists() else {}
     formalization = provenance.get("formalization") or {}
+    variants_path = card_run / "variants.json"
+    variants = json.loads(variants_path.read_text()) if variants_path.exists() else {}
 
     figures = None
     if (card_run / "kwdagger").exists():
@@ -308,6 +335,12 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
         "provenance": provenance,
         "theory": theory,
         "formalization": formalization,
+        "variants": variants,
+        "metrics": verdict_log.get("metrics") or {},
+        "metric_rows": [{"name": name, "value": fmt_symbol_value(value)}
+                        for name, value in (verdict_log.get("metrics") or {}).items()],
+        "has_theory": bool(theory),
+        "theory_links": theory_links(theory, provenance),
         "has_formalization": bool(formalization or any(
             entry.get("formalization") for entry in theory.get("entries", [])
         )),

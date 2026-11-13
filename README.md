@@ -79,9 +79,8 @@ This visualization app expects a path argument that points to the root of this s
 ### Install dependencies (create .venv)
 This is an intentionally lightweight visualization tool with minimal dependencies. 
 ```bash
-uv venv --python 3.11 --seed .venv-311-evalcard-viz
-source .venv-311-evalcard-viz/bin/activate
-uv pip install .
+uv sync --python 3.11 --no-install-project
+source .venv/bin/activate
 ```
 ### Running the App
 With results and environment ready, you can start the trame app and visualize your card runs.
@@ -146,3 +145,15 @@ recorded. It shows validation status, revision, toolchain, build and axiom
 audit, scope, empirical limitations, declarations and assumptions. A reference
 to a formal source alone has no recorded validation status; informal theory
 entries do not create a formalization indicator.
+
+## Collected results and informal theory
+
+Native `variants.json` labels identify each claim in a collected result.
+The Overview displays recorded aggregate metrics, and each sweep exposes its
+recorded terminal measurements. The Python claim is displayed in full.
+
+An optional Theory tab shows `theory.json` statements, relation types,
+assumptions and recorded premise coverage, including informal statements.
+Source links use the captured `provenance.theory_sources` URL and line number.
+Premise accounting is shown separately from formalization validation. Existing
+results without these optional files keep their previous presentation.

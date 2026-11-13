@@ -184,6 +184,7 @@ name = "eval-card-viz"
 version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
+    { name = "pyyaml" },
     { name = "trame" },
     { name = "trame-markdown" },
     { name = "trame-vuetify" },
@@ -192,6 +193,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "trame", specifier = ">=3.12.0" },
     { name = "trame-markdown", specifier = ">=3.1.0" },
     { name = "trame-vuetify", specifier = ">=3.2.2" },

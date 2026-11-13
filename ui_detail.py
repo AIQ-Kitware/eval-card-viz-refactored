@@ -16,6 +16,7 @@ TABS = [
     ("overview", "Overview"),
     ("runs", "Sweeps"),
     ("card", "Card"),
+    ("theory", "Theory"),
     ("formalization", "Formalization"),
     ("figures", "Figures"),
     ("log", "Log"),
@@ -34,6 +35,8 @@ def build_detail_view(app):
                     kwargs["v_if"] = "selected_card.figures && selected_card.figures.length > 0"
                 elif key == "formalization":
                     kwargs["v_if"] = "selected_card.has_formalization"
+                elif key == "theory":
+                    kwargs["v_if"] = "selected_card.has_theory"
                 html.Button(
                     label,
                     classes=(f"'tab' + (current_tab === '{key}' ? ' tab--active' : '')",),
@@ -50,6 +53,8 @@ def build_detail_view(app):
                 _card_definition(app)
             with html.Div(v_if="current_tab === 'formalization'"):
                 _formalization()
+            with html.Div(v_if="current_tab === 'theory'"):
+                _theory()
             with html.Div(v_if="current_tab === 'figures'"):
                 _figures()
             with html.Div(v_if="current_tab === 'log'"):
@@ -111,6 +116,15 @@ def _overview():
             _metric_block("Sweeps", "selected_card.n_runs", "parameter sets")
             _metric_block("Version", "selected_card.version", "card definition")
 
+        with html.Div(v_if="selected_card.metric_rows.length", classes="claim"):
+            html.H3("Recorded metrics")
+            with html.Table(classes="rtable rtable--dense"):
+                with html.Tbody():
+                    with html.Template(v_for="metric in selected_card.metric_rows", key=("metric.name",)):
+                        with html.Tr():
+                            html.Td("{{ metric.name }}")
+                            html.Td("{{ metric.value }}", classes="mono")
+
         # Cumulative pass-rate chart over the sweep sequence (server-rendered SVG)
         with html.Div(classes="overview__chart"):
             with html.Div(classes="chart-head"):
@@ -139,6 +153,41 @@ def _overview():
                 html.Pre("{{ selected_card.claim }}", classes="codeblock codeblock--inline")
             with html.Div(classes="claim__agg muted-tiny"):
                 html.Span("Aggregation · {{ selected_card.agg_label }}")
+
+
+def _theory():
+    with html.Div(classes="claim"):
+        html.H3("Theory")
+        html.P("{{ selected_card.formalization.scope }}", v_if="selected_card.formalization.scope")
+        with html.Template(v_for="entry in (selected_card.theory.entries || [])", key=("entry.id",)):
+            with html.Div(classes="claim"):
+                html.H4("{{ entry.id }}")
+                html.P("{{ entry.kind }}", classes="muted-tiny")
+                html.P("{{ entry.statement }}")
+                with html.Ul():
+                    with html.Template(v_for="premise in (entry.premises || [])", key=("premise.id",)):
+                        html.Li("{{ premise.id }}: {{ premise.statement }}")
+        html.H4("Recorded relations")
+        with html.Table(classes="rtable rtable--dense"):
+            with html.Thead():
+                with html.Tr():
+                    html.Th("Relation")
+                    html.Th("Statement or premise")
+                    html.Th("Source / note")
+            with html.Tbody():
+                with html.Template(v_for="(link, index) in selected_card.theory_links", key=("index",)):
+                    with html.Tr():
+                        html.Td("{{ link.relation }}")
+                        html.Td("{{ link.ref }}", classes="mono")
+                        with html.Td():
+                            html.A("{{ link.file }}:{{ link.line }}", v_if="link.url", href=("link.url",),
+                                   target="_blank", rel="noopener")
+                            html.P("{{ link.note }}", v_if="link.note")
+        with html.Template(v_for="item in (selected_card.theory.premise_coverage || [])", key=("item.ref",)):
+            with html.Div(classes="claim"):
+                html.H4("{{ item.ref }}")
+                html.P("{{ item.accounted_count }} / {{ item.premise_count }} premises accounted for")
+                html.P("Unaccounted: {{ item.unaccounted.join(', ') }}", v_if="item.unaccounted.length")
 
 
 def _formalization():
@@ -177,7 +226,7 @@ def _sweep_runs(app):
         with html.Template(v_for="run in selected_card.runs", key=("run.id",)):
             with html.Div(classes=("'sweep' + (run.ok ? '' : ' sweep--bad')",)):
                 with html.Div(classes="sweep__top"):
-                    html.Span("sweep {{ run.id }}", classes="sweep__id")
+                    html.Span("{{ run.label }}", classes="sweep__id")
                     with html.Div(style="display: flex; align-items: center; gap: 10px;"):
                         html.Span("{{ run.time_str }}", classes="sweep__time")
                         html.Span(
@@ -186,6 +235,14 @@ def _sweep_runs(app):
                         )
                 # Assertion output shown only when the claim failed
                 html.Pre("{{ run.output }}", v_if="!run.ok && run.output", classes="sweep__output")
+                with html.Details(v_if="run.measurement_rows.length", classes="sweep__symbols"):
+                    html.Summary("Recorded measurements")
+                    with html.Table(classes="rtable rtable--dense"):
+                        with html.Tbody():
+                            with html.Template(v_for="row in run.measurement_rows", key=("row.name",)):
+                                with html.Tr():
+                                    html.Td("{{ row.name }}", classes="mono")
+                                    html.Td("{{ row.value }}", classes="mono prompt-cell")
                 # Symbols toggle + table
                 with html.Button(classes="sweep__toggle", click=(app.toggle_symbols, "[run.id]")):
                     icon("chevron")
