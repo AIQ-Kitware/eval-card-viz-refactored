@@ -152,7 +152,10 @@ from the card definition. Content is organized into tabs:
   Inconclusive results are counted separately from falsified claims.
 - **Card** — a formatted definition or raw YAML, including legacy pipelines,
   `kwdagger` node definitions or pipeline references, and parameter matrices.
-- **Report** — the saved `report.md` (or `report.txt`), when present.
+- **Report** — the saved `report.md` (or `report.txt`), when present, with a
+  collapsible table of contents generated from its rendered headings. Section
+  navigation scrolls within the report and preserves its route. Reports without
+  headings omit the table of contents.
 - **Theory** — expandable statements with formalization references, declaration-specific
   saved validation status, experiment links, and a premise matrix. Relationships such
   as `assumes`, `checks`, and `satisfies` remain distinct; linked premises are not
@@ -165,6 +168,38 @@ from the card definition. Content is organized into tabs:
 
 Legacy results remain supported; newer metadata and report artifacts are optional.
 ZIP uploads can contain run folders directly or inside a wrapping directory.
+
+### Routes and shareable links
+
+Navigation uses [trame-router](https://github.com/Kitware/trame-router).
+The default hash routes work with the existing local and Docker servers:
+
+| URL suffix | View |
+| --- | --- |
+| `#/` | Evaluation library |
+| `#/cards/<name>--<run-suffix>` | Card overview |
+| `#/cards/<name>--<run-suffix>/<tab>` | A specific detail tab |
+
+Tab names are `overview`, `runs`, `card`, `report`, `theory`, `context`, `figures`,
+and `log`. Routes use the card's `name`, falling back to its algorithm name.
+A stable 12-character SHA-256 prefix of the full run ID distinguishes repeated
+names across runs and milestones. The name and suffix are URL-encoded as a single
+path segment. Existing links containing the full encoded run ID remain supported.
+Card links generate these URLs automatically; copy the address after selecting a tab to share it.
+Missing cards, unavailable tabs, and unknown routes show a recovery link to the
+library. Links to uploaded cards require those cards to be loaded in the receiving
+session too.
+
+Browser Back/Forward and reload restore the card and tab from the URL. Card lookup
+uses the full loaded catalog, so a Scaling deep link works even when the library
+defaults to filtering on Final. Search, library filters, and grid/list selection
+remain session state and are not encoded in the URL.
+
+To check routing, open a card from both grid and list layouts, change to Theory,
+copy its URL into a new tab, reload it, and use browser Back/Forward. Check the
+**All evaluation cards** link, the top **Evaluations** link, and a detail tag chip.
+Also try `#/cards/missing/theory`, an unavailable detail tab, and `#/unknown`;
+each should show a message with a working library link.
 
 Run compatibility tests with `python -m unittest -v` in the project environment.
 

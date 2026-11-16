@@ -7,7 +7,7 @@ onto real MAGNET artifacts (claim, sweep verdicts, symbols, card YAML,
 figures, execution log).
 """
 
-from trame.widgets import html
+from trame.widgets import html, router
 from trame.widgets import markdown
 
 from ui_list import icon, status_pill, tag_chips
@@ -43,7 +43,7 @@ def build_detail_view(app):
                 html.Button(
                     label,
                     classes=(f"'tab' + (current_tab === '{key}' ? ' tab--active' : '')",),
-                    click=f"current_tab = '{key}'",
+                    click=f"$router.push(selected_card.route_base + '/{key}')",
                     **kwargs,
                 )
 
@@ -55,7 +55,12 @@ def build_detail_view(app):
             with html.Div(v_if="current_tab === 'card'"):
                 _card_definition(app)
             with html.Div(v_if="current_tab === 'report'", classes="claim__desc"):
-                markdown.Markdown(content=("selected_card.report",))
+                with html.Details(classes="report-toc", hidden=True, open=True):
+                    html.Summary("Contents")
+                    with html.Nav(__properties=[("aria_label", "aria-label")], aria_label="Report table of contents"):
+                        html.Ol(classes="report-toc__items")
+                with html.Div(classes="report-content"):
+                    markdown.Markdown(content=("selected_card.report",))
             with html.Div(v_if="current_tab === 'theory'"):
                 _theory()
             with html.Div(v_if="current_tab === 'context'"):
@@ -147,7 +152,7 @@ def _theory_links(expression):
 
 def _header(app):
     with html.Div(classes="detail__header"):
-        with html.Button(classes="back", click="view = 'list'"):
+        with router.RouterLink(classes="back", to="/"):
             icon("arrowLeft")
             html.Span("All evaluation cards")
 

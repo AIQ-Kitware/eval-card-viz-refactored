@@ -9,12 +9,14 @@ Data layer + application state. The UI lives in ``ui_shell`` /
 import argparse
 import base64
 import io
+import hashlib
 import json
 import os
 import re
 import tempfile
 import zipfile
 from datetime import datetime
+from urllib.parse import quote
 
 import ubelt as ub
 import yaml
@@ -23,6 +25,7 @@ from trame.decorators import TrameApp, change
 
 from ui_shell import build_layout
 from theory import build_theory_view
+from ui_detail import TABS
 
 FAVICON_PATH = ub.Path(__file__).parent / "assets" / "MAGNET_icon.png"
 
@@ -356,6 +359,12 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
     }
     parts = card_run.name.split("_")
     entry["id"] = f"{milestone}/{organization}/{entry['algorithm']}/{card_run.name}"
+    # Names describe the card; the stable suffix distinguishes repeated evaluations.
+    route_name = str(card.get("name") or entry["algorithm"])
+    run_suffix = hashlib.sha256(entry["id"].encode("utf-8")).hexdigest()[:12]
+    entry["route_key"] = f"{route_name}--{run_suffix}"
+    entry["route_base"] = f"/cards/{quote(entry['route_key'], safe='')}"
+    entry["route_path"] = entry["route_base"] + "/overview"
     entry["date"] = "".join(parts[1:])
     return enrich_card(entry)
 
@@ -414,7 +423,7 @@ class EvaluationCardsApp:
         self.state.is_local_deployment = "SPACE_ID" not in os.environ
 
         # View state
-        self.state.view = "list"  # list | detail
+        self.state.route_error = ""
         self.state.layout_mode = "grid"  # grid | list
         self.state.selected_card = None
         self.state.current_tab = "overview"
@@ -516,12 +525,6 @@ class EvaluationCardsApp:
             for v in values
         ]
         self._refresh_filter_counts(search_term, selected_filters)
-        # Deselect the open card if it dropped out of the filtered set
-        if self.state.selected_card and not any(
-            c["id"] == self.state.selected_card["id"] for c in self.state.filtered_cards
-        ):
-            self.state.selected_card = None
-            self.state.view = "list"
 
     def toggle_filter(self, key, value):
         current = dict(self.state.selected_filters)
@@ -538,7 +541,6 @@ class EvaluationCardsApp:
         values = self.state.selected_filters.get(key, [])
         if value not in values:
             self.toggle_filter(key, value)
-        self.state.view = "list"
 
     def clear_filters(self):
         self.state.search_term = ""
@@ -546,17 +548,36 @@ class EvaluationCardsApp:
 
     # -- navigation ---------------------------------------------------------
 
-    def select_card(self, card_id):
-        card = next((c for c in self.state.cards if c["id"] == card_id), None)
-        if card is None:
+    def on_route_change(self, card_id="", tab="overview", path="/", **_):
+        """Resolve browser navigation against the full catalog, including uploads."""
+        self.state.route_error = ""
+        if not card_id:
+            self.state.selected_card = None
             return
+        card = next((c for c in self.state.cards if card_id in (c["route_key"], c["id"])), None)
+        if card is None:
+            self.state.selected_card = None
+            self.state.route_error = "Evaluation card not found. It may not be loaded in this session."
+            return
+        available = {key for key, _label in TABS}
+        for key, exists in [
+            ("theory", card["theory_view"]["available"]), ("report", card["report"]),
+            ("figures", card["figures"]), ("context", card["context_sections"]),
+        ]:
+            if not exists:
+                available.discard(key)
+        if tab not in available:
+            self.state.selected_card = None
+            self.state.route_error = "This tab is not available for this evaluation card."
+            return
+        changed_card = not self.state.selected_card or self.state.selected_card["id"] != card["id"]
         self.state.selected_card = card
-        self.state.view = "detail"
-        self.state.current_tab = "overview"
-        self.state.show_python_claim = False
-        self.state.show_raw_yaml = False
-        self.state.expanded_symbols_runs = []
-        self.state.expanded_pipeline_steps = []
+        self.state.current_tab = tab
+        if changed_card:
+            self.state.show_python_claim = False
+            self.state.show_raw_yaml = False
+            self.state.expanded_symbols_runs = []
+            self.state.expanded_pipeline_steps = []
 
     def toggle_symbols(self, run_id):
         expanded = list(self.state.expanded_symbols_runs)

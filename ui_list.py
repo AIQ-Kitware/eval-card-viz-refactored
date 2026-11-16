@@ -11,7 +11,7 @@ verbatim in the Vue template) and data-driven graphics (sparklines, the
 overview chart) are precomputed server-side and bound with ``v-html``.
 """
 
-from trame.widgets import html
+from trame.widgets import html, router
 
 # -------- Icons (inline SVG, kept tiny and consistent with the mockup) --------
 _S = 'fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"'
@@ -51,7 +51,11 @@ def tag_chips(list_expr, on_click=None):
         if on_click:
             kwargs["click"] = (on_click, "[t.group, t.label]")
             kwargs["classes"] = "tag tag--btn"
-        html.Span(
+        # Detail tags both add a filter and return to the library route.
+        element = router.RouterLink if on_click else html.Span
+        if on_click:
+            kwargs["to"] = "/"
+        element(
             "{{ t.label }}",
             __properties=[("data_group", ":data-group")],
             data_group="t.group",
@@ -167,7 +171,7 @@ def _active_chips(app):
 
 def _card(app):
     """Grid-mode evaluation card."""
-    with html.Button(classes="card", click=(app.select_card, "[c.id]")):
+    with router.RouterLink(classes="card", to=("c.route_path",)):
         with html.Div(classes="card__head"):
             with html.Div(classes="card__title-row"):
                 html.Span("{{ c.short }}", classes="card__short")
@@ -193,7 +197,7 @@ def _card(app):
 
 def _row(app):
     """List-mode evaluation row."""
-    with html.Button(classes="row", click=(app.select_card, "[c.id]")):
+    with router.RouterLink(classes="row", to=("c.route_path",)):
         with html.Div(classes="row__main"):
             html.Div("{{ c.card.title }}", classes="row__title")
             with html.Div(classes="row__title-line"):

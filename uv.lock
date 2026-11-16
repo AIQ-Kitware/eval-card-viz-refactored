@@ -187,6 +187,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "trame" },
     { name = "trame-markdown" },
+    { name = "trame-router" },
     { name = "trame-vuetify" },
     { name = "ubelt" },
 ]
@@ -196,6 +197,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "trame", specifier = ">=3.12.0" },
     { name = "trame-markdown", specifier = ">=3.1.0" },
+    { name = "trame-router", specifier = ">=2" },
     { name = "trame-vuetify", specifier = ">=3.2.2" },
     { name = "ubelt", specifier = ">=1.3.8" },
 ]
@@ -789,6 +791,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/46/64/5932640abfd69bdfafd242e36010844e1f69c8a06b6e69b635e46ef7cab9/trame-markdown-3.1.0.tar.gz", hash = "sha256:afc0621f484895e1e022d940a10b71b45c3411d0b69e67ce86c6f7df1492f766", size = 5883434, upload-time = "2025-06-11T14:13:57.027Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/91/8fa66a86369ae3da262b3ad8b27a3a8afa95ef7717b4a32827ebb52feaba/trame_markdown-3.1.0-py3-none-any.whl", hash = "sha256:a91949294f50dda09f659bb565595ff4e376f005a8d01210dfd7f8c43b581ddf", size = 6022048, upload-time = "2025-06-11T14:13:54.76Z" },
+]
+
+[[package]]
+name = "trame-router"
+version = "2.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "trame-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/bc/44298f5b6cf1dda51d2535e20cd84e981e07523da059f05c7dc0de5f31ee/trame_router-2.4.1.tar.gz", hash = "sha256:2d7ca326f79d7869f50d8564e5aee3b337a7334edbd6d212eda796432b355bd6", size = 324779, upload-time = "2026-09-16T16:14:12.618Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/59/1a9765d405f0f83b9550cd64512dd18229d1ecf915b3d3c8a473cdee15e9/trame_router-2.4.1-py3-none-any.whl", hash = "sha256:5534e9497d603e8bbc113798c127ee1e55dbd37f03b3a0ce5cc6003da3c2f8b1", size = 331746, upload-time = "2026-09-16T16:14:11.197Z" },
 ]
 
 [[package]]

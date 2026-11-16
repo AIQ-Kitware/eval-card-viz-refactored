@@ -1,9 +1,11 @@
 """Artifact compatibility checks; run with python -m unittest -v."""
 
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
+from urllib.parse import unquote
 
 import yaml
 
@@ -172,6 +174,53 @@ class CardCompatibilityTests(unittest.TestCase):
         statement = self.parse()["theory_view"]["statements"][0]
         self.assertEqual(statement["id"], "External.T")
         self.assertEqual(statement["links"][0]["note"], "Held-out test")
+
+    def test_routes_resolve_against_full_catalog_and_validate_tabs(self):
+        self.write_json("theory.json", {"entries": [{"id": "T", "kind": "theorem"}]})
+        app = EvaluationCardsApp(self.root, server="test-routes")
+        card = app.state.cards[0]
+        self.assertEqual(unquote(card["route_path"].split("/")[2]), card["route_key"])
+        self.assertEqual({r["path"] for r in app.state.trame__routes}, {
+            "/", "/cards/:cardId/:tab?", "/:pathMatch(.*)*",
+        })
+        app.state.selected_filters = {"organization": ["Another team"]}
+        app.on_filter_change("", app.state.selected_filters)
+        self.assertEqual(app.state.filtered_cards, [])
+        app.on_route_change(card["route_key"], "theory")
+        self.assertEqual(app.state.selected_card["id"], card["id"])
+        self.assertEqual(app.state.current_tab, "theory")
+        self.assertEqual(app.state.route_error, "")
+        app.on_route_change(card["id"], "runs")
+        self.assertEqual(app.state.current_tab, "runs")
+        app.on_route_change(card["id"], "figures")
+        self.assertIn("not available", app.state.route_error)
+        app.on_route_change("missing", "theory")
+        self.assertIsNone(app.state.selected_card)
+        self.assertIn("not found", app.state.route_error)
+        app.on_route_change()
+        self.assertEqual(app.state.route_error, "")
+        self.assertIsNone(app.state.selected_card)
+
+    def test_named_routes_distinguish_runs_and_preserve_legacy_links(self):
+        self.card["name"] = "shared name/#?"
+        self.write_card()
+        first = self.parse()
+        self.assertTrue(first["route_key"].startswith("shared name/#?--"))
+        self.assertEqual(unquote(first["route_base"].split("/")[2]), first["route_key"])
+        self.assertEqual(first["route_key"], self.parse()["route_key"])
+        other = self.run.with_name("hash_later")
+        shutil.copytree(self.run, other)
+        second = parse_card_run(other, "PhaseI_Final", "Team", "Algorithm")
+        self.assertNotEqual(first["route_key"], second["route_key"])
+        app = EvaluationCardsApp(self.root, server="test-named-routes")
+        for card in (first, second):
+            app.on_route_change(card["route_key"])
+            self.assertEqual(app.state.selected_card["id"], card["id"])
+            app.on_route_change(card["id"])
+            self.assertEqual(app.state.selected_card["id"], card["id"])
+        self.card.pop("name")
+        self.write_card()
+        self.assertTrue(self.parse()["route_key"].startswith("Algorithm--"))
 
 
 if __name__ == "__main__":

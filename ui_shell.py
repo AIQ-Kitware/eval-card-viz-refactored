@@ -8,7 +8,8 @@ full-page detail view, and a toast for upload feedback.
 from pathlib import Path
 
 from trame.ui.vuetify3 import VAppLayout
-from trame.widgets import client, html
+from trame.ui.router import RouterViewLayout
+from trame.widgets import client, html, router
 from trame.widgets import vuetify3 as v3
 
 from ui_list import build_list_view
@@ -75,19 +76,33 @@ COPY_SCRIPT = """
 
 def build_layout(app):
     """Construct the full UI for an EvaluationCardsApp instance."""
+    with RouterViewLayout(app.server, "/", style="min-width: 0;"):
+        build_list_view(app)
+    with RouterViewLayout(app.server, "/cards/:cardId/:tab?", style="min-width: 0;"):
+        with html.Div(v_if="route_error", classes="cardview__section"):
+            html.P("{{ route_error }}")
+            router.RouterLink("All evaluation cards", to="/")
+        with html.Div(v_if="!route_error && selected_card && (selected_card.route_key === $route.params.cardId || selected_card.id === $route.params.cardId)"):
+            build_detail_view(app)
+    with RouterViewLayout(app.server, "/:pathMatch(.*)*"):
+        with html.Div(classes="cardview__section"):
+            html.P("Page not found.")
+            router.RouterLink("All evaluation cards", to="/")
+
     with VAppLayout(app.server) as layout:
         client.Style(STYLE_PATH.read_text())
         client.Script(COPY_SCRIPT)
+        client.Script((STYLE_PATH.parent / "report_toc.js").read_text())
+        client.ClientStateChange(
+            value=("$route.fullPath",), trigger_on_create=True,
+            change=(app.on_route_change,
+                    "[$route.params.cardId || '', $route.params.tab || 'overview', $route.path]"),
+        )
 
         with html.Div(classes="app app--noqueue"):
             _top_bar(app)
             with html.Div(classes="app__body"):
-                # List view (library)
-                with html.Div(v_if="view === 'list'", style="min-width: 0;"):
-                    build_list_view(app)
-                # Detail view (single card)
-                with html.Div(v_if="view === 'detail' && selected_card", style="min-width: 0;"):
-                    build_detail_view(app)
+                router.RouterView()
 
         # Upload feedback toast
         with html.Div(
@@ -114,7 +129,7 @@ def _top_bar(app):
 
         # Nav (single section for now; placeholder for future areas)
         with html.Nav(classes="topbar__nav"):
-            html.A("Evaluations", classes="navlink navlink--active", click="view = 'list'")
+            router.RouterLink("Evaluations", to="/", classes="navlink navlink--active")
 
         # Right: verdict counts + local upload
         with html.Div(classes="topbar__right"):

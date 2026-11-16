@@ -821,3 +821,26 @@ button { font: inherit; color: inherit; }
 .theory__link { margin: 8px 0 14px; }
 .theory__gap { color: var(--text); font-weight: 700; background: var(--surface-2); }
 .theory .codeblock { margin-top: 12px; max-height: 480px; overflow: auto; }
+
+/* Router links retain the existing card, row, chip, and back-link presentation. */
+a.card, a.row, a.back, a.tag { color: inherit; text-decoration: none; }
+
+/* Report contents uses buttons so section navigation preserves the router URL. */
+.report-toc {
+  margin-bottom: 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.report-toc[hidden] { display: none; }
+.report-toc summary { cursor: pointer; font-weight: 500; }
+.report-toc ol { list-style: none; margin: 10px 0 0; padding: 0; }
+.report-toc li { margin: 4px 0 4px calc(var(--toc-level) * 16px); }
+.report-toc button {
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-align: left; overflow-wrap: anywhere;
+}
+.report-toc button:hover { text-decoration: underline; }
+.report-toc button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.report-content :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 100px; }
