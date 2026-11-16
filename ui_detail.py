@@ -17,6 +17,7 @@ TABS = [
     ("runs", "Sweeps"),
     ("card", "Card"),
     ("report", "Report"),
+    ("theory", "Theory"),
     ("context", "Evidence & provenance"),
     ("figures", "Figures"),
     ("log", "Log"),
@@ -37,6 +38,8 @@ def build_detail_view(app):
                     kwargs["v_if"] = "selected_card.report"
                 elif key == "context":
                     kwargs["v_if"] = "selected_card.context_sections.length > 0"
+                elif key == "theory":
+                    kwargs["v_if"] = "selected_card.theory_view.available"
                 html.Button(
                     label,
                     classes=(f"'tab' + (current_tab === '{key}' ? ' tab--active' : '')",),
@@ -53,6 +56,8 @@ def build_detail_view(app):
                 _card_definition(app)
             with html.Div(v_if="current_tab === 'report'", classes="claim__desc"):
                 markdown.Markdown(content=("selected_card.report",))
+            with html.Div(v_if="current_tab === 'theory'"):
+                _theory()
             with html.Div(v_if="current_tab === 'context'"):
                 with html.Template(v_for="section in selected_card.context_sections", key=("section.title",)):
                     with html.Div(classes="cardview__section"):
@@ -62,6 +67,82 @@ def build_detail_view(app):
                 _figures()
             with html.Div(v_if="current_tab === 'log'"):
                 html.Pre("{{ selected_card.log }}", classes="logblock")
+
+
+def _theory():
+    with html.Div(classes="theory"):
+        html.P(
+            "Saved proof evidence is separate from the experimental verdict. "
+            "A linked or assumed premise is not a verified premise.",
+            classes="muted-tiny",
+        )
+        html.P(
+            "No theory statements are bundled in this run.",
+            v_if="selected_card.theory_view.statements.length === 0",
+        )
+        with html.Template(v_for="statement in selected_card.theory_view.statements", key=("statement.id",)):
+            with html.Details(classes="cardview__section theory__statement", open=True):
+                with html.Summary(classes="theory__summary"):
+                    html.Span("{{ statement.id }}", classes="mono")
+                    html.Span("{{ statement.kind }}", classes="symbol-chip")
+                    html.Span("{{ statement.status }}", classes="symbol-chip")
+                html.P("{{ statement.statement }}", classes="theory__text")
+                html.Pre("{{ statement.declaration }}", v_if="statement.declaration", classes="codeblock")
+                with html.Dl(classes="theory__metadata"):
+                    with html.Template(v_for="field in statement.metadata", key=("field.name",)):
+                        html.Dt("{{ field.name }}")
+                        html.Dd("{{ field.value }}")
+                with html.Div(v_if="statement.receipts.length > 0", classes="muted-tiny theory__text"):
+                    html.Span("Validation evidence: {{ statement.receipts.join(', ') }}")
+                with html.Div(v_if="statement.links.length > 0"):
+                    html.Div("Connection to the experiment", classes="cardview__section-title")
+                    _theory_links("statement.links")
+                with html.Div(v_if="statement.premises.length > 0"):
+                    html.Div(
+                        "Premises · {{ statement.linked_count }}/{{ statement.premises.length }} linked",
+                        classes="cardview__section-title",
+                    )
+                    with html.Div(classes="theory__table"):
+                        with html.Table(classes="rtable rtable--dense"):
+                            with html.Thead():
+                                with html.Tr():
+                                    for heading in ["Premise", "Accounting", "Relationship, explanation & source"]:
+                                        html.Th(heading)
+                            with html.Tbody():
+                                with html.Template(v_for="premise in statement.premises", key=("premise.id",)):
+                                    with html.Tr():
+                                        with html.Td():
+                                            html.Div("{{ premise.id }}", classes="mono")
+                                            html.Div("{{ premise.statement }}", classes="theory__text")
+                                            html.Div("{{ premise.type }}", v_if="premise.type", classes="muted-tiny mono")
+                                        html.Td(
+                                            "{{ premise.accounting }}",
+                                            classes=("premise.accounting === 'Unaccounted' ? 'theory__gap' : ''",),
+                                        )
+                                        with html.Td():
+                                            _theory_links("premise.links")
+                html.P("No premises listed.", v_if="statement.premises.length === 0", classes="muted-tiny")
+        with html.Template(v_for="receipt in selected_card.theory_view.receipts", key=("receipt.path",)):
+            with html.Div(classes="cardview__section"):
+                html.Div("Validation details · {{ receipt.path }}", classes="cardview__section-title")
+                with html.Dl(classes="theory__metadata"):
+                    with html.Template(v_for="field in receipt.fields", key=("field.name",)):
+                        html.Dt("{{ field.name }}")
+                        html.Dd("{{ field.value }}", classes="theory__text")
+                with html.Details():
+                    html.Summary("Full validation receipt (including declarations and axioms)")
+                    html.Pre("{{ receipt.text }}", classes="codeblock")
+        with html.Details(classes="cardview__section"):
+            html.Summary("Raw theory JSON")
+            html.Pre("{{ selected_card.theory_view.raw }}", classes="codeblock")
+
+
+def _theory_links(expression):
+    with html.Template(v_for=f"(link, linkIndex) in {expression}", key=("linkIndex",)):
+        with html.Div(classes="theory__link"):
+            html.Span("{{ link.relation }}", classes="symbol-chip")
+            html.Div("{{ link.note }}", classes="theory__text")
+            html.Div("{{ link.source }}", v_if="link.source", classes="muted-tiny mono")
 
 
 def _header(app):

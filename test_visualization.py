@@ -110,6 +110,69 @@ class CardCompatibilityTests(unittest.TestCase):
         self.assertEqual(app.state.selected_filters["milestone"], [])
         self.assertEqual(len(app.state.filtered_cards), 1)
 
+    def test_theory_validation_is_scoped_to_declaration(self):
+        self.write_json("theory.json", {"entries": [
+            {"id": "proved", "kind": "theorem", "declaration": "Package.proved",
+             "formalization": {"system": "lean4"}},
+            {"id": "draft", "kind": "conjecture", "declaration": "Package.draft",
+             "formalization": {"system": "lean4"}, "statement": "axioms ['sorryAx']"},
+            {"id": "other", "declaration": "Package.other", "formalization": {"system": "lean4"}},
+            {"id": "informal", "kind": "theorem"},
+        ]})
+        self.write_json("attachments/formalization/validation.json", {
+            "status": "validated", "declarations": {"Package.proved": ["propext"]},
+            "scope": "Submitted package only", "empirical_limit": "No accuracy guarantee",
+        })
+        view = self.parse()["theory_view"]
+        self.assertEqual([e["status"] for e in view["statements"]], [
+            "Validated (saved receipt)", "Draft / sorryAx", "Formalization referenced", "Not formalized",
+        ])
+        fields = {f["name"]: f["value"] for f in view["receipts"][0]["fields"]}
+        self.assertEqual(fields["Empirical limit"], "No accuracy guarantee")
+
+    def test_theory_premises_are_linked_not_verified(self):
+        self.write_json("theory.json", {
+            "entries": [{"id": "T", "premises": [{"id": "assumed"}, {"id": "checked"}, {"id": "gap"}]}],
+            "premise_links": [
+                {"ref": "T::assumed", "relation": "assumes", "note": "IID target", "file": "code.py", "line": 7},
+                {"ref": "T::checked", "relation": "checks"},
+            ],
+            "premise_coverage": [{"ref": "T", "premises": [{"id": "gap", "accounted": False}],
+                                  "unaccounted": ["gap"]}],
+        })
+        statement = self.parse()["theory_view"]["statements"][0]
+        self.assertEqual(statement["linked_count"], 2)
+        self.assertEqual([p["accounting"] for p in statement["premises"]], ["Linked", "Linked", "Unaccounted"])
+        self.assertEqual(statement["premises"][0]["links"][0]["relation"], "assumes")
+        self.assertEqual(statement["premises"][0]["links"][0]["source"], "code.py:7")
+
+    def test_partial_validation_at_alternate_location_without_coverage(self):
+        self.write_json("theory.json", {
+            "entries": [{"id": "T", "declaration": "T", "formalization": {"system": "lean4"},
+                         "premises": [{"id": "p"}]}],
+            "premise_links": [{"ref": "T::p", "relation": "assumes"}],
+        })
+        self.write_json("attachments/validation.json", {
+            "status": "partially_validated", "axioms": {"T": []}, "full_package_rebuilt": False,
+        })
+        view = self.parse()["theory_view"]
+        self.assertEqual(view["statements"][0]["status"], "Partial validation")
+        self.assertEqual(view["statements"][0]["linked_count"], 1)
+        self.assertEqual(len(find_upload_data(self.root)[0]["theory_view"]["receipts"]), 1)
+
+    def test_theory_missing_empty_and_inline(self):
+        self.assertFalse(self.parse()["theory_view"]["available"])
+        self.write_json("theory.json", {"schema_version": 1, "entries": []})
+        view = self.parse()["theory_view"]
+        self.assertTrue(view["available"])
+        self.assertEqual(view["statements"], [])
+        (self.run / "theory.json").unlink()
+        self.card["theory"] = {"links": [{"ref": "External.T", "relation": "tests", "note": "Held-out test"}]}
+        self.write_card()
+        statement = self.parse()["theory_view"]["statements"][0]
+        self.assertEqual(statement["id"], "External.T")
+        self.assertEqual(statement["links"][0]["note"], "Held-out test")
+
 
 if __name__ == "__main__":
     unittest.main()

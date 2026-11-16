@@ -153,6 +153,11 @@ from the card definition. Content is organized into tabs:
 - **Card** — a formatted definition or raw YAML, including legacy pipelines,
   `kwdagger` node definitions or pipeline references, and parameter matrices.
 - **Report** — the saved `report.md` (or `report.txt`), when present.
+- **Theory** — expandable statements with formalization references, declaration-specific
+  saved validation status, experiment links, and a premise matrix. Relationships such
+  as `assumes`, `checks`, and `satisfies` remain distinct; linked premises are not
+  presented as verified. Empty theory files show an explicit empty state. Validation
+  details include scope, limitations, toolchain, and the full receipt, when available.
 - **Evidence & provenance** — saved evidence counts, requested work, execution
   provenance, verdict provenance, and theory assessments, when present.
 - **Figures** — any `kwdagger` PNG artifacts, when present.
@@ -162,6 +167,37 @@ Legacy results remain supported; newer metadata and report artifacts are optiona
 ZIP uploads can contain run folders directly or inside a wrapping directory.
 
 Run compatibility tests with `python -m unittest -v` in the project environment.
+
+### Checking the Theory tab
+
+Start `uv run visualization.py aiq-evaluations`. The library initially filters to
+PhaseI_Final; remove or change that milestone filter to inspect PhaseI_Scaling.
+
+- Open SRI's Latent Predictor and select **Theory**. The interval theorem should
+  show **Validated (saved receipt)**, the separate conjecture **Draft / sorryAx**,
+  and the informal Hoeffding theorem **Not formalized**. Expand the full receipt
+  to inspect the declarations and axiom audit. Compare the premise relationships;
+  `assumes` must remain distinguishable from `checks` and `satisfies`.
+- Open UCLA VeriStressGT or JHU DKPS Pair Coverage. Their declarations should
+  show **Partial validation**. Validation details should report that the full
+  package was not rebuilt. Premise rows should still appear without a saved
+  `premise_coverage` summary.
+- Open Princeton CCG v2. The inference statement should show `hmultiple` as
+  **Unaccounted**, while statements without formalization references should
+  not acquire a validated status.
+- Switch to PhaseI_Scaling and open either Incubilate run. Its nine statements
+  should show saved validation evidence, including the empirical limitation on
+  AUROC lift. Premises without experiment links should remain **Unaccounted**.
+- Open GaTech or UMD. The Theory tab should say that no theory statements are
+  bundled. A legacy run without theory or validation artifacts should have no
+  Theory tab. Princeton's inline-only theory should still show its experiment links.
+- Collapse and reopen statement cards and raw JSON; check long declarations and
+  the premise table at a narrow window width. Other tabs should continue to work.
+
+The first Theory view reads `theory.json` (falling back to inline card theory),
+`attachments/formalization/validation.json`, and `attachments/validation.json`.
+References remain display text, and saved receipts are not independently rerun.
+Evidence inside separate `expanded-evidence.zip` files is not automatically loaded.
 
 ### Code layout
 The UI is split into modules that mirror the reference design:

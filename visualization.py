@@ -22,6 +22,7 @@ from trame.app import get_server
 from trame.decorators import TrameApp, change
 
 from ui_shell import build_layout
+from theory import build_theory_view
 
 FAVICON_PATH = ub.Path(__file__).parent / "assets" / "MAGNET_icon.png"
 
@@ -341,6 +342,7 @@ def parse_card_run(card_run, milestone, organization, algorithm=None):
         "metrics": verdict_log.get("metrics") or {},
         "symbol_metadata": read_json("symbol_metadata.json"),
         "report": report_path.read_text() if report_path.exists() else "",
+        "theory_view": build_theory_view(theory, card_run),
         "context_sections": [
             {"title": title, "text": json.dumps(data, indent=2, ensure_ascii=False)}
             for title, data in [
